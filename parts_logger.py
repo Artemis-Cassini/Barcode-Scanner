@@ -1,50 +1,53 @@
 import cv2
-from pyzbar.pyzbar import decode
-from openpyxl import Workbook
-from datetime import datetime
+from pyzbar import pyzbar
+import pandas as pd
+import os
 
-def detect_barcodes(frame):
-    barcodes = decode(frame)
-    results = []
-    for barcode in barcodes:
-        barcode_data = barcode.data.decode("utf-8")
-        barcode_type = barcode.type
-        results.append((barcode_data, barcode_type))
-    return results
+# Initialize webcam
+cap = cv2.VideoCapture(0)
 
-def log_to_excel(data):
-    filename = "barcode_log.xlsx"
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Scanned Barcodes"
-    ws.append(["Barcode", "Type", "Timestamp"])
+# List to store unique barcode data
+barcode_data_list = []
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for barcode_data, barcode_type in data:
-        ws.append([barcode_data, barcode_type, timestamp])
-    wb.save(filename)
-
-def main():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Could not open camera.")
-        return
-
+try:
     while True:
+        # Capture frame-by-frame
         ret, frame = cap.read()
         if not ret:
+            print("Failed to grab frame. Exiting...")
             break
 
-        barcodes = detect_barcodes(frame)
-        if barcodes:
-            log_to_excel(barcodes)
+        # Decode barcodes in the frame
+        decoded_objects = pyzbar.decode(frame)
+        for obj in decoded_objects:
+            barcode_data = obj.data.decode("utf-8")
+            if barcode_data not in barcode_data_list:
+                barcode_data_list.append(barcode_data)
+                print(f"Barcode Detected: {barcode_data}")
 
-        cv2.imshow("Camera Feed", frame)
+        # Display the frame
+        cv2.imshow("Barcode Scanner", frame)
+
+        # Listen for 'q' key to exit
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            print("Exiting...")
             break
 
+except Exception as e:
+    print(f"Error occurred: {e}")
+
+finally:
+    # Save barcode data to Excel
+    if barcode_data_list:
+        try:
+            df = pd.DataFrame({"Barcodes": barcode_data_list})
+            excel_path = "data.xlsx"
+            df.to_excel(excel_path, index=False, engine='openpyxl')
+            print(f"Barcode data saved to '{os.path.abspath(excel_path)}'")
+        except Exception as e:
+            print(f"Failed to save Excel file: {e}")
+
+    # Release the camera and close OpenCV windows
     cap.release()
     cv2.destroyAllWindows()
-
-if __name__ == "__main__":
-    main()
+    print("Resources released. Goodbye!")
