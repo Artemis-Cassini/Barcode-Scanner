@@ -1,0 +1,9 @@
+from barcode import EAN13
+from barcode.writer import ImageWriter
+
+# Generate a barcode
+barcode_data = "194729372910"  # 12-digit number for EAN-13
+barcode = EAN13(barcode_data, writer=ImageWriter())
+
+# Save as PNG
+barcode.save("barcode_example")
