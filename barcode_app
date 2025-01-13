@@ -1,0 +1,52 @@
+from flask import Flask, render_template, Response
+import cv2
+from pyzbar.pyzbar import decode
+from openpyxl import Workbook
+
+app = Flask(__name__)
+camera = cv2.VideoCapture(0)  # Replace 0 with your desired camera index
+
+# Create an Excel workbook
+workbook = Workbook()
+sheet = workbook.active
+sheet.title = "Scanned Barcodes"
+sheet.append(["Barcode Data", "Type"])  # Add header row
+
+def generate_frames():
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
+
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        barcodes = decode(gray_frame)
+        for barcode in barcodes:
+            x, y, w, h = barcode.rect
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            barcode_data = barcode.data.decode("utf-8")
+            barcode_type = barcode.type
+            cv2.putText(frame, f"{barcode_data} ({barcode_type})", (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            print(f"Detected: {barcode_data} (Type: {barcode_type})")
+            sheet.append([barcode_data, barcode_type])  # Save to Excel
+
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/save_excel')
+def save_excel():
+    workbook.save("scanned_barcodes.xlsx")
+    return "Excel file saved!"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001, debug=True)
