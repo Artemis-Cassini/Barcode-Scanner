@@ -1,0 +1,21 @@
+from flask import app, jsonify, request
+import pandas as pd
+import os
+
+@app.route('/scan', methods=['POST'])
+def scan():
+    data = request.get_json()
+    barcode = data.get('barcode')
+
+    # Save to Excel
+    if barcode:
+        file_path = "scanned_barcodes.xlsx"
+        if os.path.exists(file_path):
+            df = pd.read_excel(file_path)
+            df = df.append({"Barcode": barcode}, ignore_index=True)
+        else:
+            df = pd.DataFrame([{"Barcode": barcode}])
+        df.to_excel(file_path, index=False, engine='openpyxl')
+
+    print(f"Scanned Barcode: {barcode}")
+    return jsonify({"message": "Barcode received", "barcode": barcode})
